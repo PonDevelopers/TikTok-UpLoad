@@ -5,7 +5,7 @@ from pathlib import Path
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 
-BASE_URL         = "http://localhost:8899"
+BASE_URL         = "http://lechaukhaapi.eu.org"
 API_KEY          = "lekhadz"
 _HEADERS         = {"X-API-Key": API_KEY}
 
