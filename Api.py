@@ -26,6 +26,8 @@ _music_ids        = []
 _music_index      = 0
 _music_index_lock = threading.Lock()
 _pending_info     = {}
+_product_fail_count = {}
+_product_fail_lock  = threading.Lock()
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
 
@@ -467,7 +469,7 @@ def _handle_info(accounts_ref, chat_id):
     _pending_info[chat_id] = accounts
     lines = ["<b>Select account:</b>"]
     for i, acc in enumerate(accounts, 1):
-        lines.append(f"{i}. {acc['label']}")
+        lines.append(f"{i}. {fmt_label(acc['label'])}")
     lines.append("\nReply with number, e.g. <code>1</code>")
     tg_html("\n".join(lines))
 
@@ -637,9 +639,17 @@ def account_worker(acc, semaphore=None):
             continue
 
         pid, product_title = get_product_info(str(video), use_product, cookies)
-        caption            = product_title if product_title else captions[cap_index % len(captions)]
-        cap_index         += 1
-        music              = load_music_for_slot()
+
+        if pid:
+            with _product_fail_lock:
+                if _product_fail_count.get(pid, 0) >= 3:
+                    clog(label, f"Skip {video.name}: product {pid} failed 3+ times")
+                    uploaded.add(video.name)
+                    continue
+
+        caption   = product_title if product_title else captions[cap_index % len(captions)]
+        cap_index += 1
+        music     = load_music_for_slot()
 
         clog(label, f"Uploading: {video.name} | Caption: {caption}")
 
@@ -701,6 +711,16 @@ def account_worker(acc, semaphore=None):
 
         except Exception as e:
             clog(label, f"Exception: {e}")
+            db_record_upload(label, video.name, "", False)
+
+            if pid:
+                with _product_fail_lock:
+                    _product_fail_count[pid] = _product_fail_count.get(pid, 0) + 1
+                    fail_count = _product_fail_count[pid]
+                if fail_count >= 3:
+                    uploaded.add(video.name)
+                    clog(label, f"Product {pid} failed {fail_count} times — skipping permanently")
+
             tg_html(
                 f'<b>[ERROR] {fmt_label(label)}</b>\n'
                 f'\n<b>Video</b>\n'
