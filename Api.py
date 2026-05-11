@@ -5,8 +5,8 @@ from pathlib import Path
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 
-BASE_URL         = "http://lechaukhaapi.eu.org"
-API_KEY          = "lekhadz"
+BASE_URL         = "http://localhost:8899"
+API_KEY          = ""
 _HEADERS         = {"X-API-Key": API_KEY}
 
 TIME_CONFIG   = "Time.json"
@@ -639,6 +639,18 @@ def account_worker(acc, semaphore=None):
             continue
 
         pid, product_title = get_product_info(str(video), use_product, cookies)
+        if use_product and extract_product_id(str(video)) and not pid:
+            try:
+                res = add_product(cookies, extract_product_id(str(video)))
+                pid = extract_product_id(str(video))
+                product_title = res.get("title", "").strip() or None
+                tg_html(
+                    f'<b>{fmt_label(label)}</b>\n'
+                    f'\n<b>Product added</b>\n'
+                    f'<blockquote>{product_title or pid}</blockquote>'
+                )
+            except Exception:
+                pass
 
         if pid:
             with _product_fail_lock:
